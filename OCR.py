@@ -26,6 +26,9 @@ def perform_OCR(img_path):
 
     return ocr_text
 
+def image_to_string(img, lang=None):
+    
+
 if __name__ == "__main__":
     main()
 

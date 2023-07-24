@@ -144,7 +144,7 @@ trainF = img_list[0:int(0.75*len(img_list))]
 testF = img_list[int(0.75*len(img_list)):]
 
 mc = tf.keras.callbacks.ModelCheckpoint("weights{epoch:08d}.h5", save_weights_only=True, save_freq=1)
-
+"""
 model.fit(batch_generator(trainF, 2, 2), epochs=4, steps_per_epoch=100, validation_data=batch_generator(testF,2,2),
                     validation_steps=400, callbacks=[mc], shuffle=1)
 """
@@ -159,4 +159,29 @@ pred = np.squeeze(np.squeeze(pred, axis=0), axis=-1)
 plt.imshow(pred, cmap="gray")
 
 plt.imsave("test_img_mask.JPG", pred)
-"""
+
+cords = []
+img = cv2.imread(f'./test_img_mask.JPG', 0)
+cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU, img)
+
+OG_img = cv2.imread(f"./Tests/test.jpg", 0)
+OG_img = cv2.resize(OG_img, (512, 512))
+
+cont, hier = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+if len(cont) == 0:
+    print("No contours found. Check the thresholding result.")
+else:
+    for c in cont:
+        x, y, w, h = cv2.boundingRect(c)
+
+        # Ensure the coordinates are within the image bounds
+        if x >= 0 and y >= 0 and x + w <= OG_img.shape[1] and y + h <= OG_img.shape[0]:
+            cv2.rectangle(OG_img, (x, y), (x + w, y + h), 0, 1)
+            cords.append([x, y, (x + w), (y + h)])
+
+    #cv2.drawContours(img, cont, -1, (255, 255, 0), 1)
+    print(cords)
+    cv2.imwrite("output.png", OG_img)
+
+visualize(img, OG_img)
