@@ -143,5 +143,5 @@ testF = img_list[int(0.75*len(img_list)):]
 
 mc = tf.keras.callbacks.ModelCheckpoint("weights{epoch:08d}.h5", save_weights_only=True, save_freq=1)
 
-model.fit(batch_generator(trainF, 2, 2), epochs=4, steps_per_epoch=100, validation_data=batch_generator(testF,2,2),
-                    validation_steps=400, callbacks=[mc], shuffle=1)
+model.fit(batch_generator(trainF, 2, 2), epochs=3, steps_per_epoch=1000, validation_data=batch_generator(testF,2,2),
+                    validation_steps=400, callbacks=[mc], shuffle=1, batch_size=32)
