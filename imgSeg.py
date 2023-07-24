@@ -75,6 +75,8 @@ def conv_neural_net(pretrained_weights = None, input_size = (512,512,1)):
     # Convolutional Block 2
     conv2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same', kernel_initializer=tf.keras.initializers.he_normal)(pool1)
     conv2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same', kernel_initializer=tf.keras.initializers.he_normal)(conv2)
+    conv2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same', kernel_initializer=tf.keras.initializers.he_normal)(pool1)
+    conv2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same', kernel_initializer=tf.keras.initializers.he_normal)(conv2)
     pool2 = tf.keras.layers.MaxPool2D(pool_size=(2, 2))(conv2)
 
     # Convolutional Block 3
@@ -134,14 +136,27 @@ def conv_neural_net(pretrained_weights = None, input_size = (512,512,1)):
 
     return model
 
-model = conv_neural_net()
-model.summary()
+model = conv_neural_net(pretrained_weights=sys.argv[1])
+#model.summary()
 
 random.shuffle(img_list)
 trainF = img_list[0:int(0.75*len(img_list))]
 testF = img_list[int(0.75*len(img_list)):]
 
 mc = tf.keras.callbacks.ModelCheckpoint("weights{epoch:08d}.h5", save_weights_only=True, save_freq=1)
-
+"""
 model.fit(batch_generator(trainF, 2, 2), epochs=3, steps_per_epoch=1000, validation_data=batch_generator(testF,2,2),
-                    validation_steps=400, callbacks=[mc], shuffle=1, batch_size=32)
+                    validation_steps=400, callbacks=[mc], shuffle=1)
+"""
+
+img = cv2.imread(f'./Tests/test.jpg', 0)
+ret, img = cv2.threshold(img, 150, 255, cv2.THRESH_BINARY_INV)
+img = cv2.resize(img, (512,512))
+img = np.expand_dims(img, axis=-1)
+img = np.expand_dims(img, axis=0)
+pred = model.predict(img)
+pred = np.squeeze(np.squeeze(pred, axis=0), axis=-1)
+plt.imshow(pred, cmap="gray")
+
+plt.imsave("test_img_mask.JPG", pred)
+
