@@ -54,6 +54,17 @@ def batch_generator(filelist, n_classes, batch_size):
         yield np.array(X), np.array(Y)
 
 def conv_neural_net(pretrained_weights = None, input_size = (512,512,1)):
+    
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+        try:
+            # Currently, memory growth must be set for each GPU separately
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+        except RuntimeError as e:
+            # Memory growth must be set before GPUs have been initialized
+            print(e)
+    
     inputs = tf.keras.layers.Input(shape=input_size)
 
     # Convolutional Block 1
@@ -62,6 +73,8 @@ def conv_neural_net(pretrained_weights = None, input_size = (512,512,1)):
     pool1 = tf.keras.layers.MaxPool2D(pool_size=(2, 2))(conv1)
 
     # Convolutional Block 2
+    conv2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same', kernel_initializer=tf.keras.initializers.he_normal)(pool1)
+    conv2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same', kernel_initializer=tf.keras.initializers.he_normal)(conv2)
     conv2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same', kernel_initializer=tf.keras.initializers.he_normal())(pool1)
     conv2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same', kernel_initializer=tf.keras.initializers.he_normal())(conv2)
     pool2 = tf.keras.layers.MaxPool2D(pool_size=(2, 2))(conv2)
@@ -132,8 +145,7 @@ testF = img_list[int(0.75*len(img_list)):]
 
 mc = tf.keras.callbacks.ModelCheckpoint("weights{epoch:08d}.h5", save_weights_only=True, save_freq=1)
 
-"""
-model.fit(batch_generator(trainF, 2, 2), epochs=3, steps_per_epoch=1000, validation_data=batch_generator(testF,2,2),
+model.fit(batch_generator(trainF, 2, 2), epochs=4, steps_per_epoch=100, validation_data=batch_generator(testF,2,2),
                     validation_steps=400, callbacks=[mc], shuffle=1)
 """
 
@@ -147,3 +159,4 @@ pred = np.squeeze(np.squeeze(pred, axis=0), axis=-1)
 plt.imshow(pred, cmap="gray")
 
 plt.imsave("test_img_mask.JPG", pred)
+"""
