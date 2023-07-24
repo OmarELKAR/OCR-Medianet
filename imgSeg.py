@@ -146,8 +146,10 @@ testF = img_list[int(0.75*len(img_list)):]
 mc = tf.keras.callbacks.ModelCheckpoint("weights{epoch:08d}.h5", save_weights_only=True, save_freq=1)
 """
 model.fit(batch_generator(trainF, 2, 2), epochs=4, steps_per_epoch=100, validation_data=batch_generator(testF,2,2),
-                    validation_steps=400, callbacks=[mc], shuffle=1)
 """
+model.fit(batch_generator(trainF, 2, 2), epochs=3, steps_per_epoch=1000, validation_data=batch_generator(testF,2,2),
+                    validation_steps=400, callbacks=[mc], shuffle=1)
+
 
 img = cv2.imread(f'./Tests/test.jpg', 0)
 ret, img = cv2.threshold(img, 150, 255, cv2.THRESH_BINARY_INV)
@@ -159,6 +161,7 @@ pred = np.squeeze(np.squeeze(pred, axis=0), axis=-1)
 plt.imshow(pred, cmap="gray")
 
 plt.imsave("test_img_mask.JPG", pred)
+
 
 cords = []
 img = cv2.imread(f'./test_img_mask.JPG', 0)
@@ -180,8 +183,6 @@ else:
             cv2.rectangle(OG_img, (x, y), (x + w, y + h), 0, 1)
             cords.append([x, y, (x + w), (y + h)])
 
-    #cv2.drawContours(img, cont, -1, (255, 255, 0), 1)
-    print(cords)
+    #print(cords)
     cv2.imwrite("output.png", OG_img)
 
-visualize(img, OG_img)
