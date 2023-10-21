@@ -5,6 +5,12 @@ import random
 import sys
 import os
 import tensorflow as tf
+from crop_ID import crop_cin
+import pytesseract
+import Levenshtein
+from tashaphyne.stemming import ArabicLightStemmer
+import re
+from camel_tools.utils.charmap import CharMapper
 
 img_list = os.listdir('./Datasets/PageSegData/PageImg')
 img_list = [filename.split(".") for filename in img_list]
@@ -202,7 +208,9 @@ def segment_img(imgOG):
     cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU, img)
 
     OG_img = cv2.imread(imgOG, 0)
+    OG_img2 = cv2.imread(imgOG)
     OG_img = cv2.resize(OG_img, (512, 512))
+    OG_img2 = cv2.resize(OG_img2, (512, 512))
 
     cont, hier = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
@@ -220,12 +228,46 @@ def segment_img(imgOG):
         #print(cords)
         cv2.imwrite("output.png", OG_img)
     
-    lines = []
+    lines = {}
+    cordsFiltered = []
     for i in range(len(cords) - 1, -1, -1):
         cord = cords[i]
-        line = OG_img[cord[1]:cord[3], cord[0]:cord[2] ].copy()
-        lines.append(line)
-    return lines
+        w = cord[2] - cord[0]
+        h = cord[3] - cord[1]
+        #print(cord ,h, w)
+        if cord[0] > 175 and cord[1] > 227 and cord[2] < 510 and cord[3] < 501 and w > h and h > 20 and w > 70:
+            
+            cordsFiltered.append(cord)
+            cv2.rectangle(OG_img2, (cord[0], cord[1]), (cord[2], cord[3]), 0, 1)
+            cv2.imwrite("outputFiltered.png", OG_img2)
+    for c in cordsFiltered:
+        if 228 <= c[1] <= 260:
+            print("name located")
+            line = OG_img2[c[1]:c[3], c[0]:c[2] ].copy()
+            new_size = (300, 200)
+
+            # Create a new white background image of the desired size
+            new_image = np.ones((new_size[1], new_size[0], 3), np.uint8) * 255
+
+            # Calculate the position to paste the original image in the center
+            x_offset = (new_size[0] - line.shape[1]) // 2
+            y_offset = (new_size[1] - line.shape[0]) // 2
+
+            # Paste the original image onto the new white background
+            new_image[y_offset:y_offset + line.shape[0], x_offset:x_offset + line.shape[1]] = line
+            lines.update({"name": new_image})
+        if 271 <= c[1] <= 310:
+              print("Surname located")
+              line = OG_img2[c[1]:c[3], c[0]:c[2] ].copy()
+              lines.update({"surname": line})
+        if 360 <= c[1] <= 390:
+              print("dob located")
+              line = OG_img2[c[1]:c[3], c[0]:c[2] ].copy()
+              lines.update({"dob": line})
+    plt.imshow(OG_img2)
+    plt.axis('off')
+    plt.show()
+    return lines, cordsFiltered
 
 def pad_img(img):
 	old_h,old_w=img.shape[0],img.shape[1]
@@ -325,17 +367,141 @@ def segment_lines(img, pred):
     plt.imshow(pred, cmap="gray")
     plt.imsave("pred_SEGMENT.JPG", img)
 
+# Load Arabic dictionary
+dictionary = ["الاسم", "اللقب", "تاريخ", "ميلاد","الولادة", "جانفي", "فيفري", "مارس", "أفريل", "ماي", "جوان", "جويلية", "أوت", "سبتمبر", "نوفمبر", "ديسمبر", "أكتوبر", "بن"]
+
+def correct_with_arabic_dictionary(ocr_results, dictionary, threshold=3):
+    stemmer = ArabicLightStemmer()
+
+    corrected_text = []
+
+    for word in ocr_results:
+        best_match = None
+        best_distance = threshold + 1
+
+        for entry in dictionary:
+            # Use stemming for dictionary and OCR words before calculating distance
+            entry_stem = stemmer.light_stem(entry)
+            word_stem = stemmer.light_stem(word)
+
+            distance = Levenshtein.distance(word_stem, entry_stem)
+            if distance < best_distance:
+                best_distance = distance
+                best_match = entry
+
+        if best_distance <= threshold:
+            corrected_text.append(best_match)
+        else:
+            corrected_text.append(word)
+
+    return corrected_text
+
+def preprocess_text(text):
+    # Remove non-alphanumeric characters
+    cleaned_text = ''.join(char for char in text if char.isalnum() or char.isspace())
+    
+    # Normalize spaces
+    cleaned_text = ' '.join(cleaned_text.split())
+    
+    # Fix broken characters (e.g., replace ئ with ي)
+    cleaned_text = cleaned_text.replace('ئ', 'ي')
+    
+    # Normalize diacritics (optional)
+    # cleaned_text = normalize_diacritics(cleaned_text)
+    
+    # Convert to standard forms (optional)
+    # cleaned_text = convert_to_standard_forms(cleaned_text)
+    
+    # Remove extra newlines
+    cleaned_text = cleaned_text.replace('\n', ' ')
+    
+    return cleaned_text
+
+
+names_database = {}
+
+with open('names_database.txt', 'r', encoding='utf-8') as file:
+    for line in file:
+        if line.startswith("AGN"):  # Filter out lines with IDs
+            parts = line.strip().split('\t')
+            if len(parts) >= 4:
+                name = parts[1]  # Add Entry to the set
+                gender = parts[3]
+                names_database[name] = gender
 
 def main():
-    line_model = conv_neural_net(pretrained_weights="./lineSeg.h5")
+    pytesseract.pytesseract.tesseract_cmd = r'D:\Program Files\Tesseract-OCR\tesseract.exe'
+    crop_cin(sys.argv[1])
+    line_model = conv_neural_net(pretrained_weights="./text_seg_model.h5")
     word_model = conv_neural_net(pretrained_weights="./wordSeg.h5")
-    CIN_model = conv_neural_net()
+    CIN_model = conv_neural_net(pretrained_weights="./CIN_SEG.h5")
     #model.summary()
-    #train_model(model)
-    train_model_CIN(CIN_model)
-    img_mask(line_model, sys.argv[1])
-    lines = segment_img(sys.argv[1])
-    line_mask(word_model, lines)
+    #train_model(line_model)
+    #train_model_CIN(CIN_model)
+
+
+    
+    
+    # Print the extracted text
+    img = cv2.imread("./runs/predict/book/im.jpg")
+    gray_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    ret, threshold_image = cv2.threshold(gray_image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    denoised_image = cv2.GaussianBlur(threshold_image, (3, 3), 0)
+
+    
+
+    config = '--oem 3 --psm 12'
+    txt = pytesseract.image_to_string(denoised_image, config = config, lang='eng')
+    
+    #corrected_text = correct_with_arabic_dictionary(txt, dictionary, threshold=5)
+    print("Text:")
+    txt = preprocess_text(txt)
+    pattern = r'\b\d{8}\b'
+    matches = re.findall(pattern, txt)
+    print("CIN Numb :", matches)
+    matched_names = {}
+
+    for name, gender in names_database.items():
+         if name in txt:
+              matched_names[name] = gender
+
+    if matched_names:
+        print("Matched Names and Genders:")
+        for name, gender in matched_names.items():
+            print(f"Name: {name}, Gender: {gender}")
+    else:
+        print("No matches found.")
+    #print("Corrected text:")
+    #print(corrected_text)
+    #text = pytesseract.image_to_string(denoised_image, lang='ara')
+    #texts = []
+
+    img_mask(line_model, "./runs/predict/book/im.jpg")
+    lines, cords = segment_img("./runs/predict/book/im.jpg")
+    #line_mask(word_model, lines)
+    ar2bw = CharMapper.builtin_mapper("ar2bw")
+    if "name" in lines:
+        name = pytesseract.image_to_string(lines['name'], lang='ara')
+        plt.imshow(lines["name"])
+        plt.axis('off')
+        plt.show()
+        
+        print(f"name: {name}")
+
+    if "surname" in lines:
+        surname = pytesseract.image_to_string(lines['surname'], lang='ara')
+        plt.imshow(lines["surname"])
+        plt.axis('off')
+        plt.show()
+        print(f"surname: {surname}")
+    if "dob" in lines:
+        dob = pytesseract.image_to_string(lines['dob'], lang='ara')
+        plt.imshow(lines["dob"])
+        plt.axis('off')
+        plt.show()
+        print(f"dob: {dob}")
+    print(cords)
+    
 
 if __name__ == "__main__" and len(sys.argv) > 1:
     main()
